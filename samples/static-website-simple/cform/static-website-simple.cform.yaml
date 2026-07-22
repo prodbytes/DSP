@@ -1,0 +1,39 @@
+Description: >
+  Simple static website hosted on S3. Creates a bucket configured for
+  website hosting with public read access via a bucket policy.
+
+
+Resources:
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${WebsiteBucket.Arn}/*"
+
+Outputs:
+  BucketName:
+    Description: Name of the S3 bucket (upload site content here)
+    Value: !Ref WebsiteBucket
+
+  WebsiteURL:
+    Description: URL of the S3 website endpoint
+    Value: !GetAtt WebsiteBucket.WebsiteURL
