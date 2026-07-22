@@ -2,12 +2,14 @@
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.5/.schema/devbox.schema.json",
   "packages": {
     "graalvmPackages.graalvm-ce-musl": "latest",
-    "python": "latest",
-    "nodejs": "latest",
-    "go": "latest",
+    "python":                          "latest",
+    "nodejs":                          "latest",
+    "go":                              "latest",
     "postgresql": {
-      "version": "latest",
+      "version":        "latest",
       "disable_plugin": true
-    }
+    },
+    "awscli2":     "latest",
+    "aws-cdk-cli": "latest"
   }
 }
