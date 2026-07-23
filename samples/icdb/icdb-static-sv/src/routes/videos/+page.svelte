@@ -1,6 +1,7 @@
 <script>
 	import { videos } from '$lib/data';
 	import VideoCard from '$lib/components/VideoCard.svelte';
+	import Comments from '$lib/components/Comments.svelte';
 </script>
 
 <svelte:head>
@@ -15,3 +16,5 @@
 		<VideoCard {video} />
 	{/each}
 </div>
+
+<Comments page="/videos" />

@@ -10,7 +10,7 @@ BUCKET_NAME="static-website-simple-${ACCOUNT_ID}"
 REGION="$(aws configure get region)"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONTENT_DIR="${SCRIPT_DIR}/../hello-website"
+CONTENT_DIR="${SCRIPT_DIR}/../../hello-website"
 
 if aws s3api head-bucket --bucket "${BUCKET_NAME}" 2>/dev/null; then
   echo "Bucket '${BUCKET_NAME}' already exists; skipping creation."

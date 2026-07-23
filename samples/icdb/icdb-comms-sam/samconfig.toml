@@ -1,0 +1,8 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = "icdb-comms-sam"
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+resolve_s3 = true

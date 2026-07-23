@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  icdb-comms-sam — comments API for the ICDb app.
+  HTTP API + TypeScript Lambda, backed by Aurora Serverless v2 PostgreSQL
+  in a private VPC, accessed through the RDS Data API.
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Timeout: 29
+    MemorySize: 256
+  HttpApi:
+    CorsConfiguration:
+      AllowOrigins:
+        - '*'
+      AllowMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+      AllowHeaders:
+        - content-type
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: icdb-comms
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.1.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private subnets for the comments database
+      SubnetIds:
+        - !Ref PrivateSubnetA
+        - !Ref PrivateSubnetB
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Comments database (no inbound; access via RDS Data API)
+      VpcId: !Ref Vpc
+
+  DbCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: '18.3'
+      DatabaseName: icdb
+      MasterUsername: icdb
+      ManageMasterUserPassword: true
+      StorageEncrypted: true
+      EnableHttpEndpoint: true
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: 0
+        MaxCapacity: 2
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VpcSecurityGroupIds:
+        - !GetAtt DbSecurityGroup.GroupId
+
+  DbInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Engine: aurora-postgresql
+      DBClusterIdentifier: !Ref DbCluster
+      DBInstanceClass: db.serverless
+
+  CommentsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Target: es2022
+        EntryPoints:
+          - src/comments.ts
+    Properties:
+      Handler: comments.handler
+      CodeUri: .
+      Environment:
+        Variables:
+          CLUSTER_ARN: !GetAtt DbCluster.DBClusterArn
+          SECRET_ARN: !GetAtt DbCluster.MasterUserSecret.SecretArn
+          DB_NAME: icdb
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - rds-data:ExecuteStatement
+                - rds-data:BatchExecuteStatement
+                - rds-data:BeginTransaction
+                - rds-data:CommitTransaction
+                - rds-data:RollbackTransaction
+              Resource: !GetAtt DbCluster.DBClusterArn
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !GetAtt DbCluster.MasterUserSecret.SecretArn
+      Events:
+        InitComments:
+          Type: HttpApi
+          Properties:
+            Path: /init
+            Method: GET
+        CreateComment:
+          Type: HttpApi
+          Properties:
+            Path: /comments
+            Method: POST
+        ListComments:
+          Type: HttpApi
+          Properties:
+            Path: /comments
+            Method: GET
+        GetComment:
+          Type: HttpApi
+          Properties:
+            Path: /comments/{id}
+            Method: GET
+        UpdateComment:
+          Type: HttpApi
+          Properties:
+            Path: /comments/{id}
+            Method: PUT
+        DeleteComment:
+          Type: HttpApi
+          Properties:
+            Path: /comments/{id}
+            Method: DELETE
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the comments API
+    Value: !Sub 'https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com'

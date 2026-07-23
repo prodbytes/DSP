@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the ICDB static site and verify the output.
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 echo "==> Installing dependencies"
 if [ -f package-lock.json ]; then

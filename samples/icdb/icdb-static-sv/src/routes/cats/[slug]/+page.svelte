@@ -1,4 +1,6 @@
 <script>
+	import Comments from '$lib/components/Comments.svelte';
+
 	let { data } = $props();
 
 	const cat = $derived(data.cat);
@@ -53,6 +55,8 @@
 		</div>
 	</div>
 </article>
+
+<Comments page={`/cats/${cat.slug}`} />
 
 <style>
 	.title-block {

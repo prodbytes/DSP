@@ -5,7 +5,7 @@ set -euo pipefail
 
 STACK_NAME="${1:-${STACK_NAME:-static-website-simple}}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SITE_DIR="${SCRIPT_DIR}/../hello-website"
+SITE_DIR="${SCRIPT_DIR}/../../hello-website"
 
 BUCKET_NAME="$(aws cloudformation describe-stacks \
   --stack-name "${STACK_NAME}" \

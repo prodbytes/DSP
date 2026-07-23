@@ -10,6 +10,7 @@
       "disable_plugin": true
     },
     "awscli2":     "latest",
-    "aws-cdk-cli": "latest"
+    "aws-cdk-cli": "latest",
+    "aws-sam-cli": "latest"
   }
 }

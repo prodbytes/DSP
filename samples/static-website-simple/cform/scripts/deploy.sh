@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 aws cloudformation deploy \
   --stack-name "${STACK_NAME}" \
-  --template-file "${SCRIPT_DIR}/static-website-simple.cform.yaml"
+  --template-file "${SCRIPT_DIR}/../static-website-simple.cform.yaml"
 
 "${SCRIPT_DIR}/static-website-simple.after-deploy.sh" "${STACK_NAME}"
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Serve the built ICDB static site with Python's http.server.
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/.."
 
 PORT="${1:-8000}"
 
 if [ ! -f build/index.html ]; then
-	echo "No build output found — running ./build.sh first"
-	./build.sh
+	echo "No build output found — running ./scripts/build.sh first"
+	./scripts/build.sh
 fi
 
 echo "Serving ICDb at: http://localhost:${PORT}/"

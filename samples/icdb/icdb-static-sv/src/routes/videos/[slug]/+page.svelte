@@ -1,5 +1,6 @@
 <script>
 	import { getCat, videoImage } from '$lib/data';
+	import Comments from '$lib/components/Comments.svelte';
 
 	let { data } = $props();
 
@@ -36,7 +37,7 @@
 			<p>{video.plot}</p>
 
 			{#if video.youtube}
-				<a class="watch" href={video.youtube} rel="external noopener">▶ Watch on YouTube</a>
+				<a class="watch" href={video.youtube} target="_blank" rel="external noopener">▶ Watch on YouTube</a>
 			{/if}
 
 			<h3>Starring</h3>
@@ -54,6 +55,8 @@
 		</div>
 	</div>
 </article>
+
+<Comments page={`/videos/${video.slug}`} />
 
 <style>
 	.title-block {

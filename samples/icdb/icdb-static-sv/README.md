@@ -21,8 +21,8 @@ dynamic routes (`/cats/[slug]`, `/videos/[slug]`) are prerendered from `entries(
 ## Build
 
 ```sh
-./build.sh        # npm install + build + output verification
-./run.sh [port]   # serve ./build with Python http.server (default port 8000)
+./scripts/build.sh        # npm install + build + output verification
+./scripts/run.sh [port]   # serve ./build with Python http.server (default port 8000)
 ```
 
 or manually:
@@ -33,9 +33,22 @@ npm run build     # static output in ./build
 npm run preview   # serve the build locally
 ```
 
+## Comments
+
+The videos page (`/videos`) ends with a comments form and list backed by the
+[icdb-comms-sam](../icdb-comms-sam) API. The API base URL is baked in at build
+time via `VITE_COMMENTS_API`:
+
+```sh
+VITE_COMMENTS_API=https://xxxx.execute-api.us-east-1.amazonaws.com ./scripts/build.sh
+```
+
+Deploy `icdb-comms-sam` first (its deploy script prints the URL). Builds
+without `VITE_COMMENTS_API` show "Comments are not configured for this build."
+
 ## Image credits
 
 Cat portraits come from Wikimedia Commons under CC licenses; see the About page
-(`/about`) or `src/lib/attribution.json` for per-image attribution. Cats without a
-freely licensed photo (Henri, Happy Cat, Colonel Meow, Keyboard Cat) use lookalike
-stand-in photos.
+(`/about`) or `src/lib/attribution.json` for per-image attribution. Only Grumpy Cat
+and Lil Bub have freely licensed photos of the actual cat; the others (Henri, Maru,
+Happy Cat, Nyan Cat, Colonel Meow, Keyboard Cat) use lookalike stand-in photos.
