@@ -1,9 +1,9 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  sam-todo
+  sam-calc
 
-  Sample SAM Template for sam-todo
+  Serverless calculator that evaluates arithmetic expressions via API Gateway
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
@@ -11,36 +11,41 @@ Globals:
     Timeout: 3
 
 Resources:
-  HelloWorldFunction:
+  SAMCalcFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: hello_world/
+      CodeUri: sam_calc/
       Handler: app.lambda_handler
       Runtime: python3.14
       Architectures:
         - x86_64
       Events:
-        GetTodos:
+        CalcGet:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            Path: /todos
+            Path: /calc
             Method: get
-        PostTodo:
+        CalcPost:
           Type: Api
           Properties:
-            Path: /todos
+            Path: /calc
             Method: post
+        CalcPut:
+          Type: Api
+          Properties:
+            Path: /calc
+            Method: put
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  TodoApi:
-    Description: "API Gateway endpoint URL for Prod stage for the TODO function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/todos/"
-  HelloWorldFunction:
-    Description: "Hello World Lambda Function ARN"
-    Value: !GetAtt HelloWorldFunction.Arn
-  HelloWorldFunctionIamRole:
-    Description: "Implicit IAM Role created for Hello World function"
-    Value: !GetAtt HelloWorldFunctionRole.Arn
+  SAMCalcApi:
+    Description: "API Gateway endpoint URL for Prod stage for SAMCalc function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/calc/"
+  SAMCalcFunction:
+    Description: "SAMCalc Lambda Function ARN"
+    Value: !GetAtt SAMCalcFunction.Arn
+  SAMCalcFunctionIamRole:
+    Description: "Implicit IAM Role created for SAMCalc function"
+    Value: !GetAtt SAMCalcFunctionRole.Arn

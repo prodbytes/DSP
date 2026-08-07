@@ -1,15 +1,13 @@
 {
-  "body": "{\"item\": \"buy milk\"}",
-  "resource": "/todos",
-  "path": "/todos",
+  "body": null,
+  "resource": "/calc",
+  "path": "/calc",
   "httpMethod": "GET",
   "isBase64Encoded": false,
   "queryStringParameters": {
-    "foo": "bar"
+    "expr": "2 + 3"
   },
-  "pathParameters": {
-    "proxy": "/path/to/resource"
-  },
+  "pathParameters": null,
   "stageVariables": {
     "baz": "qux"
   },
@@ -53,9 +51,9 @@
       "userAgent": "Custom User Agent String",
       "user": null
     },
-    "path": "/prod/todos",
-    "resourcePath": "/todos",
-    "httpMethod": "POST",
+    "path": "/prod/calc",
+    "resourcePath": "/calc",
+    "httpMethod": "GET",
     "apiId": "1234567890",
     "protocol": "HTTP/1.1"
   }
