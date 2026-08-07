@@ -1,7 +1,13 @@
 <h1>Hello!</h1>
 
-<p>I Can Has Cheezburger?</p>
+<p style="font-weight: bold;">I Can Has Cheezburger?</p>
+
+<p>You clicked <span id="clickCount">0</span> times!</p>
 
 <a href="https://knowyourmeme.com/memes/sites/cheezburger" target="_blank">
-    <img alt="Meme Cat" src="cat.jpg" />
+    <img alt="Meme Cat" src="cat.jpg" 
+    onclick="(function(){
+        var c=document.getElementById('clickCount');
+        c.textContent = parseInt(c.textContent) + 1;})
+        ();" />
 </a>
