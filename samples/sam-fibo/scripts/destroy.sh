@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Destroys the sam-calc stack.
+# Destroys the sam-fibo stack.
 # Usage: ./scripts/destroy.sh
 set -euo pipefail
 

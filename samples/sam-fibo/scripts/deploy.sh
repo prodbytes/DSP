@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds and deploys the sam-calc stack (SAM), then prints the API URL.
+# Builds and deploys the sam-fibo stack (SAM), then prints the API URL.
 # Usage: ./scripts/deploy.sh
 set -euo pipefail
 
@@ -11,9 +11,9 @@ sam build --use-container
 sam deploy --no-confirm-changeset --no-fail-on-empty-changeset
 
 API_URL="$(aws cloudformation describe-stacks \
-  --stack-name sam-calc \
-  --query "Stacks[0].Outputs[?OutputKey=='SAMCalcApi'].OutputValue" \
+  --stack-name sam-fibo \
+  --query "Stacks[0].Outputs[?OutputKey=='SAMFiboApi'].OutputValue" \
   --output text)"
 
-echo "SAMCalc API deployed: ${API_URL}"
-echo "Try: curl \"${API_URL}?expr=2%2B3\""
+echo "SAMFibo API deployed: ${API_URL}"
+echo "Try it now: ${API_URL}?x=10"

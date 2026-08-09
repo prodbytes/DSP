@@ -3,7 +3,7 @@
 version = 0.1
 
 [default.global.parameters]
-stack_name = "sam-calc"
+stack_name = "sam-fibo"
 
 [default.build.parameters]
 cached = true

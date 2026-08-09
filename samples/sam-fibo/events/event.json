@@ -1,13 +1,15 @@
 {
   "body": null,
-  "resource": "/calc",
-  "path": "/calc",
+  "resource": "/fibo",
+  "path": "/fibo",
   "httpMethod": "GET",
   "isBase64Encoded": false,
   "queryStringParameters": {
-    "expr": "2 + 3"
+    "x": "10"
   },
-  "pathParameters": null,
+  "pathParameters": {
+    "proxy": "/path/to/resource"
+  },
   "stageVariables": {
     "baz": "qux"
   },
@@ -51,8 +53,8 @@
       "userAgent": "Custom User Agent String",
       "user": null
     },
-    "path": "/prod/calc",
-    "resourcePath": "/calc",
+    "path": "/prod/fibo",
+    "resourcePath": "/fibo",
     "httpMethod": "GET",
     "apiId": "1234567890",
     "protocol": "HTTP/1.1"

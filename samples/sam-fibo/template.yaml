@@ -1,51 +1,43 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  sam-calc
+  sam-fibo
 
-  Serverless calculator that evaluates arithmetic expressions via API Gateway
+  Sample SAM Template for sam-fibo
 
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
+    # fibo(10000000) has ~2.1M digits; give big inputs CPU time and memory.
+    Timeout: 29
+    MemorySize: 1024
 
 Resources:
-  SAMCalcFunction:
+  SAMFiboFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: sam_calc/
+      CodeUri: sam_fibo/
       Handler: app.lambda_handler
       Runtime: python3.14
       Architectures:
         - x86_64
       Events:
-        CalcGet:
+        SAMFibo:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
-            Path: /calc
+            Path: /fibo
             Method: get
-        CalcPost:
-          Type: Api
-          Properties:
-            Path: /calc
-            Method: post
-        CalcPut:
-          Type: Api
-          Properties:
-            Path: /calc
-            Method: put
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
   # Find out more about other implicit resources you can reference within SAM
   # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
-  SAMCalcApi:
-    Description: "API Gateway endpoint URL for Prod stage for SAMCalc function"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/calc/"
-  SAMCalcFunction:
-    Description: "SAMCalc Lambda Function ARN"
-    Value: !GetAtt SAMCalcFunction.Arn
-  SAMCalcFunctionIamRole:
-    Description: "Implicit IAM Role created for SAMCalc function"
-    Value: !GetAtt SAMCalcFunctionRole.Arn
+  SAMFiboApi:
+    Description: "API Gateway endpoint URL for Prod stage for SAM Fibo function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/fibo/"
+  SAMFiboFunction:
+    Description: "SAM Fibo Lambda Function ARN"
+    Value: !GetAtt SAMFiboFunction.Arn
+  SAMFiboFunctionIamRole:
+    Description: "Implicit IAM Role created for SAM Fibo function"
+    Value: !GetAtt SAMFiboFunctionRole.Arn
