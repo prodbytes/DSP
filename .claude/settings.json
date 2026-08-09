@@ -6,7 +6,17 @@
       "Bash(mint broken-links *)",
       "mcp__mintlify-docs__search_mintlify",
       "Bash(gh run watch *)",
-      "Bash(gh gpg-key list)"
+      "Bash(gh gpg-key list)",
+      "Bash(curl -s *)",
+      "Bash(curl -sL *)",
+      "Bash(curl -sS *)",
+      "Bash(curl -sI *)",
+      "Bash(unzip -l *)",
+      "Bash(unzip -p *)",
+      "Bash(sam validate *)",
+      "Bash(aws cloudformation describe-stacks *)",
+      "Bash(aws s3api head-bucket *)",
+      "Bash(aws sts get-caller-identity *)"
     ]
   }
 }
