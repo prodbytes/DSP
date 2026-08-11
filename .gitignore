@@ -64,6 +64,8 @@ coverage/
 go.work.sum
 vendor/
 bin/
+# CDK TypeScript apps keep their entrypoint in bin/
+!samples/**/bin/
 
 # --- Archives ---
 *.zip
