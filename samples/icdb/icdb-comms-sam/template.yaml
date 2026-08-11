@@ -120,6 +120,11 @@ Resources:
                 - secretsmanager:GetSecretValue
               Resource: !GetAtt DbCluster.MasterUserSecret.SecretArn
       Events:
+        RootRedirect:
+          Type: HttpApi
+          Properties:
+            Path: /
+            Method: GET
         InitComments:
           Type: HttpApi
           Properties:

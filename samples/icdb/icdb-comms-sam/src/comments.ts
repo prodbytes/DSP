@@ -214,6 +214,12 @@ export async function handler(
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> {
   try {
+    // Behind the CDN the function is the default origin; send bare requests
+    // for the site root to the app, which lives under /app.
+    if (event.rawPath === '/' || event.rawPath === '') {
+      return { statusCode: 302, headers: { location: '/app/index.html' } };
+    }
+
     await ensureSchema();
     const method = event.requestContext.http.method;
     const id = event.pathParameters?.id;
