@@ -1,0 +1,230 @@
+# aws cloudformation deploy --stack-name vpc-3az --template-file samples/vpc-3az/vpc-3az.cform.yaml
+# aws cloudformation deploy --stack-name rds-pgsql-sls --template-file samples/rds-pgsql-sls/rds-pgsql-sls.cform.yaml --capabilities CAPABILITY_NAMED_IAM
+
+Description: Aurora Serverless
+
+Parameters:
+  TenantId:
+    Type: String
+    Default: default
+    Description: Tag value for Application
+
+  DBUsername:
+    Type: String
+    Default: postgres
+    MinLength: 1
+    MaxLength: 32
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9_]*$"
+    Description: Administrative username
+
+  AllowedCidr:
+    Type: String
+    Default: "0.0.0.0/0"
+    Description: CIDRs allowed in to database clients
+
+  DatabaseName:
+    Type: String
+    Default: project
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9_]*$"
+
+  DBEngine:
+    Type: String
+    Default: aurora-postgresql
+    AllowedValues:
+      - aurora-mysql
+      - aurora-postgresql
+    Description: The database engine to use
+
+  DBPort:
+    Type: Number
+    Default: 5432
+    Description: Database port (5432 for aurora-postgresql, 3306 for aurora-mysql)
+
+  DBInstanceClass:
+    Type: String
+    Default: db.serverless
+
+  PubliclyAccessible:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Whether the DB instance gets a public IP (requires public subnets in the DB subnet group)
+
+  EnableIAMDatabaseAuthentication:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Allow database connections with IAM auth tokens
+
+  MinCapacity:
+    Type: Number
+    Default: 0.0
+    Description: Minimum Aurora Serverless capacity in ACUs
+
+  MaxCapacity:
+    Type: Number
+    Default: 2.0
+    Description: Maximum Aurora Serverless capacity in ACUs
+
+Resources:
+  DBClientsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Aurora Clients
+      VpcId:
+        Fn::ImportValue: !Sub "${TenantId}-VpcId"
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: !Ref AllowedCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Aurora SG
+      VpcId:
+        Fn::ImportValue: !Sub "${TenantId}-VpcId"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
+          SourceSecurityGroupId: !Ref DBClientsSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets for Aurora
+      SubnetIds:
+        - Fn::ImportValue: !Sub "${TenantId}-IsolatedSubnet1Id"
+        - Fn::ImportValue: !Sub "${TenantId}-IsolatedSubnet2Id"
+        - Fn::ImportValue: !Sub "${TenantId}-IsolatedSubnet3Id"
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  DbCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: !Ref DBEngine
+      MasterUsername: !Ref DBUsername
+      ManageMasterUserPassword: true
+      EnableIAMDatabaseAuthentication: !Ref EnableIAMDatabaseAuthentication
+      Port: !Ref DBPort
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VpcSecurityGroupIds: [!Ref DbSecurityGroup, !Ref DBClientsSecurityGroup]
+      DatabaseName: !Ref DatabaseName
+      ServerlessV2ScalingConfiguration:
+        MinCapacity: !Ref MinCapacity
+        MaxCapacity: !Ref MaxCapacity
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  DbInstanceWriter:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DbCluster
+      DBInstanceClass: !Ref DBInstanceClass
+      Engine: !Ref DBEngine
+      PubliclyAccessible: !Ref PubliclyAccessible
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  # Grants rds-db:connect for IAM database authentication; attach to client
+  # roles (e.g. a Lambda execution role) and map the DB user with
+  # `GRANT rds_iam TO <user>` in PostgreSQL.
+  DBIamAuthPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Allow IAM authentication to the Aurora cluster
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: rds-db:connect
+            Resource: !Sub "arn:${AWS::Partition}:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:${DbCluster.DBClusterResourceId}/*"
+
+Outputs:
+  ClusterArn:
+    Description: Cluster ARN
+    Value: !Ref DbCluster
+
+  WriterEndpoint:
+    Description: Writer endpoint address
+    Value: !GetAtt [DbCluster, Endpoint.Address]
+
+  ReaderEndpoint:
+    Description: Reader endpoint address
+    Value: !GetAtt [DbCluster, ReadEndpoint.Address]
+
+  SecurityGroupId:
+    Description: DB security group ID
+    Value: !Ref DbSecurityGroup
+
+  DBInstanceId:
+    Description: Writer DB instance identifier
+    Value: !Ref DbInstanceWriter
+
+  PsqlConnectCLI:
+    Description: psql command to connect with the Secrets Manager password
+    Value: !Sub "PGPASSWORD=$(aws secretsmanager get-secret-value --secret-id '${DbCluster.MasterUserSecret.SecretArn}' --query 'SecretString' --output text | jq -r .password) psql -h '${DbInstanceWriter.Endpoint.Address}' -U '${DBUsername}' -d '${DatabaseName}'"
+
+  DBHost:
+    Description: Writer DB instance host
+    Value: !GetAtt [DbInstanceWriter, Endpoint.Address]
+    Export:
+      Name: !Sub "${TenantId}-DBHost"
+
+  DBUsername:
+    Description: DB username
+    Value: !Ref DBUsername
+    Export:
+      Name: !Sub "${TenantId}-DBUsername"
+
+  DBSecretArn:
+    Description: Secrets Manager secret holding the master credentials
+    Value: !GetAtt [DbCluster, MasterUserSecret.SecretArn]
+    Export:
+      Name: !Sub "${TenantId}-DBSecretArn"
+
+  DBIamAuthPolicyArn:
+    Description: Managed policy granting rds-db:connect for IAM database authentication
+    Value: !Ref DBIamAuthPolicy
+    Export:
+      Name: !Sub "${TenantId}-DBIamAuthPolicyArn"
+
+  DBName:
+    Description: Database name
+    Value: !Ref DatabaseName
+    Export:
+      Name: !Sub "${TenantId}-DBName"
+
+  DBClientsSecurityGroupId:
+    Description: Security Group for DB clients
+    Value: !Ref DBClientsSecurityGroup
+    Export:
+      Name: !Sub "${TenantId}-DBClientsSecurityGroupId"
+
+  JDBCUrl:
+    Description: JDBC connection URL
+    Value: !Sub "jdbc:postgresql://${DbInstanceWriter.Endpoint.Address}:${DBPort}/${DatabaseName}"
+    Export:
+      Name: !Sub "${TenantId}-JDBCUrl"

@@ -1,0 +1,192 @@
+# aws cloudformation deploy --stack-name rds-pgsql-bastion --template-file samples/rds-pgsql-sls/rds-pgsql-bastion.cform.yaml --capabilities CAPABILITY_IAM
+# Tunnel:  ssh -i <your-key.pem> -N -L 5432:<DBHost>:5432 ec2-user@<BastionPublicIp>   (see stack outputs)
+# On box:  psql-db   (fetches the master password from Secrets Manager and opens psql)
+
+Description: Bastion host with PostgreSQL client and SSH tunnel to the Aurora database
+
+Parameters:
+  TenantId:
+    Type: String
+    Default: default
+    Description: Tag value for Application; must match the vpc-3az and rds-pgsql-sls stacks
+
+  InstanceType:
+    Type: String
+    Default: t4g.nano
+    AllowedValues:
+      - t4g.nano
+      - t4g.micro
+      - t4g.small
+    Description: Bastion instance type (t4g is arm64/Graviton)
+
+  # Latest Amazon Linux 2023 arm64 AMI, resolved from the public SSM parameter at deploy time
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+    Description: Amazon Linux 2023 AMI (arm64)
+
+  KeyName:
+    Type: String
+    Default: ""
+    Description: EC2 key pair name for SSH access (leave empty to use SSM Session Manager only)
+
+  SSHAllowedCidr:
+    Type: String
+    Default: "0.0.0.0/0"
+    Description: CIDR allowed to SSH into the bastion
+
+  DBPort:
+    Type: Number
+    Default: 5432
+    Description: Database port (must match the rds-pgsql-sls stack)
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
+
+Resources:
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Bastion SSH access
+      VpcId:
+        Fn::ImportValue: !Sub "${TenantId}-VpcId"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHAllowedCidr
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Session Manager access (no key pair required)
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        # rds-db:connect for IAM database authentication, exported by rds-pgsql-sls
+        - Fn::ImportValue: !Sub "${TenantId}-DBIamAuthPolicyArn"
+      Policies:
+        - PolicyName: read-db-master-secret
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  Fn::ImportValue: !Sub "${TenantId}-DBSecretArn"
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  BastionInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref BastionRole]
+
+  BastionInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref "AWS::NoValue"]
+      IamInstanceProfile: !Ref BastionInstanceProfile
+      SubnetId:
+        Fn::ImportValue: !Sub "${TenantId}-PublicSubnet1Id"
+      SecurityGroupIds:
+        - !Ref BastionSecurityGroup
+        # Member of the DB clients group so the database SG accepts its traffic
+        - Fn::ImportValue: !Sub "${TenantId}-DBClientsSecurityGroupId"
+      UserData:
+        Fn::Base64:
+          Fn::Sub:
+            - |
+              #!/bin/bash
+              set -uo pipefail
+
+              dnf install -y postgresql16 jq || dnf install -y postgresql15 jq
+
+              # EC2 Instance Connect (preinstalled on AL2023; ensure it's present).
+              # No instance role needed: the caller's IAM identity needs
+              # ec2-instance-connect:SendSSHPublicKey, and port 22 must be open.
+              dnf install -y ec2-instance-connect
+
+              # Allow SSH port forwarding for tunnels to the database (ssh -L)
+              printf 'AllowTcpForwarding yes\n' > /etc/ssh/sshd_config.d/60-db-tunnel.conf
+              systemctl reload sshd
+
+              # Database connection details for interactive shells
+              cat > /etc/profile.d/db-env.sh <<EOF
+              export DB_HOST='${DBHost}'
+              export DB_PORT='${DBPort}'
+              export DB_NAME='${DBName}'
+              export DB_USER='${DBUser}'
+              export DB_SECRET_ARN='${DBSecretArn}'
+              export AWS_DEFAULT_REGION='${AWS::Region}'
+              EOF
+
+              # psql wrapper: fetch the master password from Secrets Manager and connect
+              cat > /usr/local/bin/psql-db <<'EOF'
+              #!/bin/bash
+              set -euo pipefail
+              source /etc/profile.d/db-env.sh
+              PGPASSWORD="$(aws secretsmanager get-secret-value --secret-id "$DB_SECRET_ARN" --query SecretString --output text | jq -r .password)" \
+                exec psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" "$@"
+              EOF
+              chmod +x /usr/local/bin/psql-db
+            - DBHost:
+                Fn::ImportValue: !Sub "${TenantId}-DBHost"
+              DBName:
+                Fn::ImportValue: !Sub "${TenantId}-DBName"
+              DBUser:
+                Fn::ImportValue: !Sub "${TenantId}-DBUsername"
+              DBSecretArn:
+                Fn::ImportValue: !Sub "${TenantId}-DBSecretArn"
+              DBPort: !Ref DBPort
+      Tags:
+        - Key: Name
+          Value: !Sub "${TenantId}-db-bastion"
+        - Key: TenantId
+          Value: !Ref TenantId
+
+Outputs:
+  BastionInstanceId:
+    Description: Bastion instance ID
+    Value: !Ref BastionInstance
+
+  BastionPublicIp:
+    Description: Bastion public IP
+    Value: !GetAtt BastionInstance.PublicIp
+
+  SSHTunnelCommand:
+    Description: SSH tunnel exposing the database on localhost:5432
+    Value: !Sub
+      - "ssh -i <your-key.pem> -N -L ${DBPort}:${DBHost}:${DBPort} ec2-user@${BastionInstance.PublicIp}"
+      - DBHost:
+          Fn::ImportValue: !Sub "${TenantId}-DBHost"
+
+  SSMTunnelCommand:
+    Description: Keyless port-forwarding tunnel via SSM Session Manager
+    Value: !Sub
+      - "aws ssm start-session --target ${BastionInstance} --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters host='${DBHost}',portNumber='${DBPort}',localPortNumber='${DBPort}'"
+      - DBHost:
+          Fn::ImportValue: !Sub "${TenantId}-DBHost"
+
+  SSMSessionCommand:
+    Description: Open a shell on the bastion without a key pair; then run psql-db
+    Value: !Sub "aws ssm start-session --target ${BastionInstance}"
+
+  InstanceConnectCommand:
+    Description: SSH via EC2 Instance Connect (caller needs ec2-instance-connect:SendSSHPublicKey)
+    Value: !Sub "aws ec2-instance-connect ssh --instance-id ${BastionInstance} --os-user ec2-user"

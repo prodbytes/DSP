@@ -1,11 +1,11 @@
-# aws cloudformation deploy --stack-name vpc-3ha --template-file samples/vpc-3ha/vpc-3ha.cform.yaml
-# aws cloudformation delete-stack --stack-name vpc-3ha
-Description: VPC with 3 public subnets and 3 isolated private subnets.
+# aws cloudformation deploy --stack-name vpc-3az --template-file samples/vpc-3az/vpc-3az.cform.yaml
+# aws cloudformation delete-stack --stack-name vpc-3az
+Description: VPC with 3 public subnets and 3 isolated subnets.
 
 Parameters:
-  EnvId:
+  TenantId:
     Type: String
-    Default: Project
+    Default: default
 
   VpcCidr:
     Type: String
@@ -44,14 +44,14 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-vpc
+          Value: !Sub ${TenantId}-vpc
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-igw
+          Value: !Sub ${TenantId}-igw
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -65,7 +65,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-public-rt
+          Value: !Sub ${TenantId}-public-rt
 
   PublicDefaultRoute:
     Type: AWS::EC2::Route
@@ -81,7 +81,7 @@ Resources:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-isolated-rt
+          Value: !Sub ${TenantId}-isolated-rt
         - Key: Isolation
           Value: isolated
 
@@ -94,7 +94,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-public-a
+          Value: !Sub ${TenantId}-public-a
         - Key: Tier
           Value: public
 
@@ -107,7 +107,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-public-b
+          Value: !Sub ${TenantId}-public-b
         - Key: Tier
           Value: public
 
@@ -120,7 +120,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-public-c
+          Value: !Sub ${TenantId}-public-c
         - Key: Tier
           Value: public
 
@@ -133,7 +133,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-isolated-a
+          Value: !Sub ${TenantId}-isolated-a
 
   IsolatedSubnet2:
     Type: AWS::EC2::Subnet
@@ -144,7 +144,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-isolated-b
+          Value: !Sub ${TenantId}-isolated-b
 
   IsolatedSubnet3:
     Type: AWS::EC2::Subnet
@@ -155,7 +155,7 @@ Resources:
       MapPublicIpOnLaunch: false
       Tags:
         - Key: Name
-          Value: !Sub ${EnvId}-isolated-c
+          Value: !Sub ${TenantId}-isolated-c
 
   AssocPublicSubnet1:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -193,28 +193,28 @@ Outputs:
   VpcId:
     Value: !Ref VPC
     Export:
-      Name: !Sub ${EnvId}-VpcId
+      Name: !Sub ${TenantId}-VpcId
 
   InternetGatewayId:
     Value: !Ref InternetGateway
     Export:
-      Name: !Sub ${EnvId}-InternetGatewayId
+      Name: !Sub ${TenantId}-InternetGatewayId
 
   PublicRouteTableId:
     Value: !Ref PublicRouteTable
     Export:
-      Name: !Sub ${EnvId}-PublicRouteTableId
+      Name: !Sub ${TenantId}-PublicRouteTableId
 
   IsolatedRouteTableId:
     Value: !Ref IsolatedRouteTable
     Export:
-      Name: !Sub ${EnvId}-IsolatedRouteTableId
+      Name: !Sub ${TenantId}-IsolatedRouteTableId
 
   PublicSubnetIds:
     Value:
       !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2, !Ref PublicSubnet3]]
     Export:
-      Name: !Sub ${EnvId}-PublicSubnetIds
+      Name: !Sub ${TenantId}-PublicSubnetIds
 
   IsolatedSubnetIds:
     Value:
@@ -223,31 +223,31 @@ Outputs:
         [!Ref IsolatedSubnet1, !Ref IsolatedSubnet2, !Ref IsolatedSubnet3],
       ]
     Export:
-      Name: !Sub ${EnvId}-IsolatedSubnetIds
+      Name: !Sub ${TenantId}-IsolatedSubnetIds
 
   PublicSubnet1Id:
     Value: !Ref PublicSubnet1
     Export:
-      Name: !Sub ${EnvId}-PublicSubnet1Id
+      Name: !Sub ${TenantId}-PublicSubnet1Id
   PublicSubnet2Id:
     Value: !Ref PublicSubnet2
     Export:
-      Name: !Sub ${EnvId}-PublicSubnet2Id
+      Name: !Sub ${TenantId}-PublicSubnet2Id
   PublicSubnet3Id:
     Value: !Ref PublicSubnet3
     Export:
-      Name: !Sub ${EnvId}-PublicSubnet3Id
+      Name: !Sub ${TenantId}-PublicSubnet3Id
 
   IsolatedSubnet1Id:
     Value: !Ref IsolatedSubnet1
     Export:
-      Name: !Sub ${EnvId}-IsolatedSubnet1Id
+      Name: !Sub ${TenantId}-IsolatedSubnet1Id
   IsolatedSubnet2Id:
     Value: !Ref IsolatedSubnet2
     Export:
-      Name: !Sub ${EnvId}-IsolatedSubnet2Id
+      Name: !Sub ${TenantId}-IsolatedSubnet2Id
   IsolatedSubnet3Id:
     Value: !Ref IsolatedSubnet3
     Export:
-      Name: !Sub ${EnvId}-IsolatedSubnet3Id
+      Name: !Sub ${TenantId}-IsolatedSubnet3Id
   
