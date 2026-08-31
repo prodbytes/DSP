@@ -1,6 +1,7 @@
 # aws cloudformation deploy --stack-name vpc-3az --template-file samples/vpc-3az/vpc-3az.cform.yaml
-# aws cloudformation deploy --stack-name rds-pgsql-sls --template-file samples/rds-pgsql-sls/rds-pgsql-sls.cform.yaml --capabilities CAPABILITY_NAMED_IAM
-Description: Aurora Serverless
+# aws cloudformation deploy --stack-name rds-pgsql-pub --template-file samples/rds-pgsql-sls/rds-pgsql-pub.cform.yaml --capabilities CAPABILITY_IAM
+
+Description: Aurora Serverless in Public Subnets
 
 Parameters:
   TenantId:
@@ -44,6 +45,14 @@ Parameters:
   DBInstanceClass:
     Type: String
     Default: db.serverless
+
+  PubliclyAccessible:
+    Type: String
+    Default: "true"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Whether the DB instance gets a public IP (requires public subnets in the DB subnet group)
 
   EnableIAMDatabaseAuthentication:
     Type: String
@@ -91,6 +100,10 @@ Resources:
           FromPort: !Ref DBPort
           ToPort: !Ref DBPort
           SourceSecurityGroupId: !Ref DBClientsSecurityGroup
+        - IpProtocol: tcp
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
+          CidrIp: !Ref AllowedCidr
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -103,9 +116,9 @@ Resources:
     Properties:
       DBSubnetGroupDescription: Subnets for Aurora
       SubnetIds:
-        - Fn::ImportValue: !Sub "${TenantId}-IsolatedSubnet1Id"
-        - Fn::ImportValue: !Sub "${TenantId}-IsolatedSubnet2Id"
-        - Fn::ImportValue: !Sub "${TenantId}-IsolatedSubnet3Id"
+        - Fn::ImportValue: !Sub "${TenantId}-PublicSubnet1Id"
+        - Fn::ImportValue: !Sub "${TenantId}-PublicSubnet2Id"
+        - Fn::ImportValue: !Sub "${TenantId}-PublicSubnet3Id"
       Tags:
         - Key: TenantId
           Value: !Ref TenantId
@@ -134,7 +147,7 @@ Resources:
       DBClusterIdentifier: !Ref DbCluster
       DBInstanceClass: !Ref DBInstanceClass
       Engine: !Ref DBEngine
-      PubliclyAccessible: false
+      PubliclyAccessible: !Ref PubliclyAccessible
       Tags:
         - Key: TenantId
           Value: !Ref TenantId
