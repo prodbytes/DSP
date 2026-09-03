@@ -1,6 +1,6 @@
 # aws cloudformation deploy --stack-name vpc-3az --template-file samples/vpc-3az/vpc-3az.cform.yaml
-# aws cloudformation deploy --stack-name rds-pgsql-sls --template-file samples/rds-pgsql-sls/rds-pgsql-sls.cform.yaml --capabilities CAPABILITY_NAMED_IAM
-Description: Aurora Serverless
+# aws cloudformation deploy --stack-name rds-pgsql-sls --template-file samples/rds-pgsql-sls/rds-pgsql-sls.cform.yaml --capabilities CAPABILITY_IAM
+Description: Aurora Serverless Database with IAM authentication and security groups for clients.
 
 Parameters:
   TenantId:
@@ -15,11 +15,6 @@ Parameters:
     MaxLength: 32
     AllowedPattern: "^[a-zA-Z][a-zA-Z0-9_]*$"
     Description: Administrative username
-
-  AllowedCidr:
-    Type: String
-    Default: "0.0.0.0/0"
-    Description: CIDRs allowed in to database clients
 
   DatabaseName:
     Type: String
@@ -64,15 +59,14 @@ Parameters:
     Description: Maximum Aurora Serverless capacity in ACUs
 
 Resources:
+  # Marker group for database clients: no ingress of its own, it only
+  # identifies members to the DB and endpoint security groups.
   DBClientsSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Aurora Clients
       VpcId:
         Fn::ImportValue: !Sub "${TenantId}-VpcId"
-      SecurityGroupIngress:
-        - IpProtocol: -1
-          CidrIp: !Ref AllowedCidr
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -97,6 +91,50 @@ Resources:
       Tags:
         - Key: TenantId
           Value: !Ref TenantId
+
+  # Interface endpoints let clients without a public IP (e.g. CloudShell
+  # VPC environments) reach AWS APIs with no internet path. Single-subnet
+  # to keep costs down; add the other isolated subnets for AZ resilience.
+  VpcEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: HTTPS from DB clients to AWS service endpoints
+      VpcId:
+        Fn::ImportValue: !Sub "${TenantId}-VpcId"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref DBClientsSecurityGroup
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  SecretsManagerVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.secretsmanager"
+      VpcId:
+        Fn::ImportValue: !Sub "${TenantId}-VpcId"
+      SubnetIds:
+        - Fn::ImportValue: !Sub "${TenantId}-IsolatedSubnet1Id"
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      PrivateDnsEnabled: true
+
+  StsVpcEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.sts"
+      VpcId:
+        Fn::ImportValue: !Sub "${TenantId}-VpcId"
+      SubnetIds:
+        - Fn::ImportValue: !Sub "${TenantId}-IsolatedSubnet1Id"
+      SecurityGroupIds:
+        - !Ref VpcEndpointSecurityGroup
+      PrivateDnsEnabled: true
 
   DbSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
