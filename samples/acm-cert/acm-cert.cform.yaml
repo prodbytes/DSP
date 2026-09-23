@@ -1,0 +1,50 @@
+# aws cloudformation deploy --region us-east-1 --stack-name prodbytes-route53-zone --template-file samples/route53-zone/route53-zone.cform.yaml --parameter-overrides TenantId=prodbytes DomainName=prodbyt.es
+# aws cloudformation deploy --region us-east-1 --stack-name prodbytes-acm-cert --template-file samples/acm-cert/acm-cert.cform.yaml --parameter-overrides TenantId=prodbytes
+# aws cloudformation delete-stack --region us-east-1 --stack-name prodbytes-acm-cert
+#
+# MUST be deployed in us-east-1: CloudFront only accepts ACM certificates
+# issued there.
+
+Description: >
+  DNS-validated ACM certificate for the domain of the hosted zone exported
+  by the route53-zone stack of the same TenantId.
+
+Parameters:
+  TenantId:
+    Type: String
+    Default: default
+    Description: Prefix for import/export names and tag value for Application
+
+Resources:
+  # Naming the hosted zone lets CloudFormation write the validation CNAME
+  # itself - no manual DNS step. Stack creation blocks here until validation
+  # succeeds, so the zone must already be the authoritative one for the
+  # domain (NS records delegated at the registrar), or this hangs.
+  Certificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName:
+        Fn::ImportValue: !Sub "${TenantId}-HostedZoneName"
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName:
+            Fn::ImportValue: !Sub "${TenantId}-HostedZoneName"
+          HostedZoneId:
+            Fn::ImportValue: !Sub "${TenantId}-HostedZoneId"
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+Outputs:
+  CertificateArn:
+    Description: ACM certificate ARN
+    Value: !Ref Certificate
+    Export:
+      Name: !Sub ${TenantId}-CertificateArn
+
+  CertificateDomainName:
+    Description: Domain the certificate covers
+    Value:
+      Fn::ImportValue: !Sub "${TenantId}-HostedZoneName"
+    Export:
+      Name: !Sub ${TenantId}-CertificateDomainName

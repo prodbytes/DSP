@@ -1,0 +1,169 @@
+# aws cloudformation deploy --region us-east-1 --stack-name prodbytes-route53-zone --template-file samples/route53-zone/route53-zone.cform.yaml --parameter-overrides TenantId=prodbytes DomainName=prodbyt.es
+# aws cloudformation deploy --region us-east-1 --stack-name prodbytes-acm-cert --template-file samples/acm-cert/acm-cert.cform.yaml --parameter-overrides TenantId=prodbytes
+# aws cloudformation deploy --region us-east-1 --stack-name prodbytes-s3-redirect-https --template-file samples/s3-redirect-https/s3-redirect-https.cform.yaml --parameter-overrides TenantId=prodbytes TargetHostName=prodbytes.substack.com
+# aws cloudformation delete-stack --region us-east-1 --stack-name prodbytes-s3-redirect-https
+#
+# Deploy in us-east-1, the region of the acm-cert stack: CloudFormation
+# imports only resolve within a region.
+
+Description: >
+  HTTPS static redirect for a domain. An S3 website bucket named after the
+  domain redirects every request to another host; CloudFront fronts it with
+  the ACM certificate from the acm-cert stack so the redirect also answers on
+  https. Route 53 aliases the domain to the distribution in the zone from the
+  route53-zone stack. Paths and query strings are preserved.
+
+Parameters:
+  TenantId:
+    Type: String
+    Default: default
+    Description: Prefix for import/export names and tag value for Application
+
+  TargetHostName:
+    Type: String
+    MinLength: 1
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+    Description: >
+      Host to redirect to, e.g. www.example.com. A host name only - no
+      scheme, port, path or trailing slash.
+
+  TargetProtocol:
+    Type: String
+    Default: https
+    AllowedValues:
+      - https
+      - http
+    Description: Scheme used in the Location header of the redirect
+
+  PriceClass:
+    Type: String
+    Default: PriceClass_100
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+    Description: >
+      CloudFront edge locations to use. PriceClass_100 (US/EU) is the
+      cheapest and is plenty for a redirect - other regions are still
+      served, just from a further edge.
+
+Resources:
+  # The bucket never serves objects, and RedirectAllRequestsTo always answers
+  # 301 Moved Permanently - the status code is not configurable here.
+  # The bucket stays fully private: the website endpoint answers with the
+  # redirect before any object is looked up. It is named after the domain,
+  # so that name must be globally unique.
+  RedirectBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::ImportValue: !Sub "${TenantId}-CertificateDomainName"
+      WebsiteConfiguration:
+        RedirectAllRequestsTo:
+          HostName: !Ref TargetHostName
+          Protocol: !Ref TargetProtocol
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub
+          - "Redirect ${DomainName} to ${TargetHostName}"
+          - DomainName:
+              Fn::ImportValue: !Sub "${TenantId}-CertificateDomainName"
+        Aliases:
+          - Fn::ImportValue: !Sub "${TenantId}-CertificateDomainName"
+        PriceClass: !Ref PriceClass
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        Origins:
+          # The S3 *website* endpoint, not the REST endpoint: only the
+          # website endpoint performs redirects. It speaks HTTP only and
+          # cannot be locked behind OAC, so this is a custom origin.
+          # WebsiteURL carries a scheme, hence the split.
+          - Id: S3WebsiteOrigin
+            DomainName: !Select [1, !Split ["://", !GetAtt RedirectBucket.WebsiteURL]]
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+              HTTPPort: 80
+        DefaultCacheBehavior:
+          TargetOriginId: S3WebsiteOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          # Caching is disabled and the whole request is forwarded on purpose:
+          # S3 builds the Location header from the path and query string it
+          # receives, so a cached or stripped-down request would hand some
+          # visitors a redirect meant for a different URL.
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+        ViewerCertificate:
+          AcmCertificateArn:
+            Fn::ImportValue: !Sub "${TenantId}-CertificateArn"
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+      Tags:
+        - Key: TenantId
+          Value: !Ref TenantId
+
+  # Z2FDTNDATAQYW2 is the fixed hosted zone ID of every CloudFront
+  # distribution - it is not region-specific.
+  RedirectRecords:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId:
+        Fn::ImportValue: !Sub "${TenantId}-HostedZoneId"
+      RecordSets:
+        - Name:
+            Fn::ImportValue: !Sub "${TenantId}-CertificateDomainName"
+          Type: A
+          AliasTarget:
+            DNSName: !GetAtt Distribution.DomainName
+            HostedZoneId: Z2FDTNDATAQYW2
+            EvaluateTargetHealth: false
+        - Name:
+            Fn::ImportValue: !Sub "${TenantId}-CertificateDomainName"
+          Type: AAAA
+          AliasTarget:
+            DNSName: !GetAtt Distribution.DomainName
+            HostedZoneId: Z2FDTNDATAQYW2
+            EvaluateTargetHealth: false
+
+Outputs:
+  BucketName:
+    Description: Bucket holding the website redirect configuration
+    Value: !Ref RedirectBucket
+    Export:
+      Name: !Sub ${TenantId}-RedirectBucketName
+
+  DistributionId:
+    Description: CloudFront distribution ID
+    Value: !Ref Distribution
+    Export:
+      Name: !Sub ${TenantId}-DistributionId
+
+  DistributionDomainName:
+    Description: CloudFront domain the alias records point at
+    Value: !GetAtt Distribution.DomainName
+    Export:
+      Name: !Sub ${TenantId}-DistributionDomainName
+
+  RedirectFrom:
+    Description: Domain being redirected (http is upgraded to https first)
+    Value: !Sub
+      - "https://${DomainName}"
+      - DomainName:
+          Fn::ImportValue: !Sub "${TenantId}-CertificateDomainName"
+
+  RedirectTo:
+    Description: Address requests are sent to
+    Value: !Sub "${TargetProtocol}://${TargetHostName}"

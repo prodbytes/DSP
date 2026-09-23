@@ -1,0 +1,113 @@
+# Deploy example: redirect prodbyt.es to prodbytes.substack.com
+# aws cloudformation deploy --stack-name s3-redirect-prodbytes --template-file samples/s3-redirect/s3-redirect-http.cform.yaml --parameter-overrides HostedZoneId=$(aws route53 list-hosted-zones-by-name --dns-name prodbyt.es --query 'HostedZones[0].Id' --output text | cut -d/ -f3) DomainName=prodbyt.es TargetHostName=prodbytes.substack.com
+
+Description: >
+  Static HTTP redirect for a domain. Creates an S3 bucket named after the
+  domain, configured as a website that redirects every request to another
+  host, plus a Route 53 alias record pointing the domain at that bucket's
+  website endpoint. Paths and query strings are preserved by S3.
+
+Parameters:
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: Route 53 hosted zone that serves DomainName
+
+  DomainName:
+    Type: String
+    MinLength: 1
+    MaxLength: 63
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+    Description: >
+      Domain to redirect away from, e.g. old.example.com. Also used as the
+      bucket name, so it must be globally unique and DNS-compliant.
+
+  TargetHostName:
+    Type: String
+    MinLength: 1
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+    Description: >
+      Host to redirect to, e.g. www.example.com. A host name only - no
+      scheme, port, path or trailing slash.
+
+  TargetProtocol:
+    Type: String
+    Default: https
+    AllowedValues:
+      - https
+      - http
+    Description: Scheme used in the Location header of the redirect
+
+Mappings:
+  # Fixed hosted zone IDs of the S3 website endpoints, per region.
+  # https://docs.aws.amazon.com/general/latest/gr/s3.html#s3_website_region_endpoints
+  S3WebsiteHostedZone:
+    af-south-1: { ZoneId: Z11KHD8FBVPUYU }
+    ap-east-1: { ZoneId: ZNB98KWMFR0R6 }
+    ap-northeast-1: { ZoneId: Z2M4EHUR26P7ZW }
+    ap-northeast-2: { ZoneId: Z3W03O7B5YMIYP }
+    ap-northeast-3: { ZoneId: Z2YQB5RD63NC85 }
+    ap-south-1: { ZoneId: Z11RGJOFQNVJUP }
+    ap-southeast-1: { ZoneId: Z3O0J2DXBE1FTB }
+    ap-southeast-2: { ZoneId: Z1WCIGYICN2BYD }
+    ca-central-1: { ZoneId: Z1QDHH18159H29 }
+    eu-central-1: { ZoneId: Z21DNDUVLTQW6Q }
+    eu-north-1: { ZoneId: Z3BAZG2TWCNX0D }
+    eu-south-1: { ZoneId: Z30OZKI7KPW7MI }
+    eu-west-1: { ZoneId: Z1BKCTXD74EZPE }
+    eu-west-2: { ZoneId: Z3GKZC51ZF0DB4 }
+    eu-west-3: { ZoneId: Z3R1K369G5AVDG }
+    me-south-1: { ZoneId: Z1MPMWCPA7YB62 }
+    sa-east-1: { ZoneId: Z7KQH4QJS55SO }
+    us-east-1: { ZoneId: Z3AQBSTGFYJSTF }
+    us-east-2: { ZoneId: Z2O1EMRO9K5GLX }
+    us-west-1: { ZoneId: Z2F56UZL2M1ACD }
+    us-west-2: { ZoneId: Z3BJ6K6RIION7M }
+
+Resources:
+  # The bucket never serves objects, and RedirectAllRequestsTo always answers
+  # 301 Moved Permanently - the status code is not configurable here.
+  # The bucket stays fully private: the website endpoint answers with the
+  # redirect before any object is looked up.
+  RedirectBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref DomainName
+      WebsiteConfiguration:
+        RedirectAllRequestsTo:
+          HostName: !Ref TargetHostName
+          Protocol: !Ref TargetProtocol
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+
+  # Alias to the S3 website endpoint. The record name must match the bucket
+  # name exactly, which is why the bucket is named after the domain.
+  RedirectRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: A
+      AliasTarget:
+        DNSName: !Sub "s3-website.${AWS::Region}.amazonaws.com"
+        HostedZoneId: !FindInMap [S3WebsiteHostedZone, !Ref "AWS::Region", ZoneId]
+        EvaluateTargetHealth: false
+
+Outputs:
+  BucketName:
+    Description: Bucket holding the website redirect configuration
+    Value: !Ref RedirectBucket
+
+  WebsiteEndpoint:
+    Description: S3 website endpoint the domain aliases to
+    Value: !GetAtt RedirectBucket.WebsiteURL
+
+  RedirectFrom:
+    Description: Domain being redirected (HTTP only - S3 website endpoints have no TLS)
+    Value: !Sub "http://${DomainName}"
+
+  RedirectTo:
+    Description: Address requests are sent to
+    Value: !Sub "${TargetProtocol}://${TargetHostName}"
