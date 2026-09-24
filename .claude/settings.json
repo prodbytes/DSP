@@ -16,7 +16,22 @@
       "Bash(sam validate *)",
       "Bash(aws cloudformation describe-stacks *)",
       "Bash(aws s3api head-bucket *)",
-      "Bash(aws sts get-caller-identity *)"
+      "Bash(aws sts get-caller-identity *)",
+      "Bash(npm ls *)",
+      "Bash(aws route53 list-*)",
+      "Bash(ffprobe *)",
+      "Bash(dig *)",
+      "Bash(brew list *)",
+      "Bash(shasum *)",
+      "Bash(devbox services ls)",
+      "Bash(npm view *)",
+      "Bash(git check-ignore *)",
+      "Bash(aws cloudformation validate-template *)",
+      "Bash(devbox version *)",
+      "Bash(sdk list *)",
+      "Bash(sdk version)",
+      "mcp__plugin_Notion_notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-fetch"
     ]
   }
 }
