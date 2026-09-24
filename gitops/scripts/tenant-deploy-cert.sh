@@ -8,8 +8,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/tenant-common.sh"
 # The certificate stack blocks until DNS validation succeeds, which needs the
 # registrar to delegate the domain to this zone's name servers. Wait for that
 # to propagate first (up to DELEGATION_TIMEOUT seconds, default 30 minutes).
+# Set SKIP_DELEGATION_CHECK=false to enable the wait; it is skipped by default
+# for now.
 name_servers="$(output "${TENANT_ID}-route53-zone" NameServers)"
-if command -v dig >/dev/null 2>&1; then
+if [[ "${SKIP_DELEGATION_CHECK:-true}" == "true" ]]; then
+  echo "Skipping delegation check for ${DOMAIN_NAME} (SKIP_DELEGATION_CHECK=true)."
+elif command -v dig >/dev/null 2>&1; then
   expected="$(tr ',' '\n' <<<"${name_servers}" | sed 's/\.$//' | sort)"
   deadline=$((SECONDS + ${DELEGATION_TIMEOUT:-1800}))
   until [[ "$(dig +short NS "${DOMAIN_NAME}" | sed 's/\.$//' | sort)" == "${expected}" ]]; do

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploys all of nu01's domain stacks in order: Route 53 zone, ACM certificate,
-# then the HTTPS redirect. Each step is also runnable on its own from
-# gitops/scripts with the same environment.
+# then the HTTPS redirect and the Gmail mail records. Each step is also
+# runnable on its own from gitops/scripts with the same environment.
 set -euo pipefail
 
 export TENANT_ID="nu01"
@@ -33,3 +33,4 @@ fi
 
 "${SCRIPT_DIR}/tenant-deploy-cert.sh"
 "${SCRIPT_DIR}/tenant-deploy-redirect.sh"
+"${SCRIPT_DIR}/tenant-deploy-gmail.sh"
