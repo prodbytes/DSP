@@ -6,15 +6,23 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/tenant-common.sh"
 
 # The certificate stack blocks until DNS validation succeeds, which needs the
-# registrar to delegate the domain to this zone's name servers.
+# registrar to delegate the domain to this zone's name servers. Wait for that
+# to propagate first (up to DELEGATION_TIMEOUT seconds, default 30 minutes).
 name_servers="$(output "${TENANT_ID}-route53-zone" NameServers)"
 if command -v dig >/dev/null 2>&1; then
-  delegated="$(dig +short NS "${DOMAIN_NAME}" | sed 's/\.$//' | sort)"
   expected="$(tr ',' '\n' <<<"${name_servers}" | sed 's/\.$//' | sort)"
-  if [[ "${delegated}" != "${expected}" ]]; then
-    echo "WARNING: ${DOMAIN_NAME} is not yet delegated to ${name_servers};" \
-      "certificate validation will wait until it is." >&2
-  fi
+  deadline=$((SECONDS + ${DELEGATION_TIMEOUT:-1800}))
+  until [[ "$(dig +short NS "${DOMAIN_NAME}" | sed 's/\.$//' | sort)" == "${expected}" ]]; do
+    if ((SECONDS >= deadline)); then
+      echo "ERROR: ${DOMAIN_NAME} is still not delegated to ${name_servers}" >&2
+      exit 1
+    fi
+    echo "Waiting for ${DOMAIN_NAME} to delegate to ${name_servers}..."
+    sleep 30
+  done
+  echo "${DOMAIN_NAME} is delegated to ${name_servers}"
+else
+  echo "WARNING: dig not found; not checking that ${DOMAIN_NAME} is delegated." >&2
 fi
 
 deploy "${TENANT_ID}-acm-cert" \
