@@ -1,12 +1,10 @@
 # Shared setup for the tenant-deploy*.sh scripts. Source it; don't run it
-# directly. Sources the tenant vars file named by the calling script's first
-# argument, which must set TENANT_ID, DOMAIN_NAME and TARGET_HOST_NAME.
+# directly. Tenant settings come from the environment: TENANT_ID, DOMAIN_NAME
+# and TARGET_HOST_NAME must be exported by the caller (e.g. nu01/nu01-deploy.sh).
 
-TENANT_VARS="${1:?usage: $0 <tenant-vars-file>}"
-source "${TENANT_VARS}"
-: "${TENANT_ID:?not set in ${TENANT_VARS}}" \
-  "${DOMAIN_NAME:?not set in ${TENANT_VARS}}" \
-  "${TARGET_HOST_NAME:?not set in ${TENANT_VARS}}"
+: "${TENANT_ID:?must be set in the environment}" \
+  "${DOMAIN_NAME:?must be set in the environment}" \
+  "${TARGET_HOST_NAME:?must be set in the environment}"
 
 # us-east-1 is required: CloudFront only accepts ACM certificates from there,
 # and CloudFormation imports only resolve within one region.

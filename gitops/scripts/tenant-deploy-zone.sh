@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploys a tenant's Route 53 hosted zone and prints its name servers, which
 # the registrar must delegate to before the certificate can validate.
-# Usage: ./tenant-deploy-zone.sh <tenant-vars-file>
+# Usage: TENANT_ID=... DOMAIN_NAME=... TARGET_HOST_NAME=... ./tenant-deploy-zone.sh
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/tenant-common.sh"
 

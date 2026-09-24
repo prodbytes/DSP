@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploys a tenant's ACM certificate. Requires the zone stack
 # (tenant-deploy-zone.sh), whose exports it imports.
-# Usage: ./tenant-deploy-cert.sh <tenant-vars-file>
+# Usage: TENANT_ID=... DOMAIN_NAME=... TARGET_HOST_NAME=... ./tenant-deploy-cert.sh
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/tenant-common.sh"
 
